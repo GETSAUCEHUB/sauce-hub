@@ -17,10 +17,10 @@ local CONFIG = {
     -- jnkie dashboard values (SAUCEHUB service, work.ink provider)
     JUNKIE_SERVICE    = "SAUCEHUB",
     JUNKIE_IDENTIFIER = "1145232",
-    -- Provider NAMES must match the jnkie dashboard exactly (GET /api/v2/providers).
-    -- Users pick one at the key screen; a key from either validates the same service.
-    JUNKIE_PROVIDER_WORKINK  = "SAUCEHUB WORK.INK KEY",
-    JUNKIE_PROVIDER_LOOTLABS = "SAUCEHUB LOOTLABS KEY",
+    -- Provider NAME must match the jnkie dashboard exactly (GET /api/v2/providers).
+    -- One combined provider whose checkpoint flow offers both work.ink and lootlabs,
+    -- so a single Get Key link covers both.
+    JUNKIE_PROVIDER   = "SAUCEHUB 24 HOUR KEY",
 
     -- Where a validated key is cached so users don't re-enter it.
     -- Still re-validated with jnkie every launch (HWID / expiry stay enforced).
@@ -168,9 +168,7 @@ end
 
 Junkie.service    = CONFIG.JUNKIE_SERVICE
 Junkie.identifier = CONFIG.JUNKIE_IDENTIFIER
--- Default so the SDK never errors on "provider not set"; each Get Key button
--- passes its own provider explicitly to get_key_link anyway.
-Junkie.provider   = CONFIG.JUNKIE_PROVIDER_WORKINK
+Junkie.provider   = CONFIG.JUNKIE_PROVIDER
 
 --==============================================================
 -- ROUTING - fetch + run the game-specific script after validation
@@ -242,7 +240,7 @@ screenGui.IgnoreGuiInset = true
 screenGui.Parent = parent
 
 local main = Instance.new("Frame")
-main.Size = UDim2.new(0, 440, 0, 336)
+main.Size = UDim2.new(0, 440, 0, 300)
 main.Position = UDim2.new(0.5, 0, 0.5, 0)
 main.AnchorPoint = Vector2.new(0.5, 0.5)
 main.BackgroundColor3 = T.background
@@ -318,10 +316,10 @@ closeBtn.MouseButton1Click:Connect(function() screenGui:Destroy() end)
 
 -- Body: description
 local desc = Instance.new("TextLabel")
-desc.Size = UDim2.new(1, -40, 0, 50)
+desc.Size = UDim2.new(1, -40, 0, 38)
 desc.Position = UDim2.new(0, 20, 0, 54)
 desc.BackgroundTransparency = 1
-desc.Text = "Pick work.ink OR lootlabs to get a key, complete the checkpoint, then paste it below and hit Redeem."
+desc.Text = "Click Get Key, complete the checkpoint, then paste your key below and hit Redeem."
 desc.TextColor3 = T.textDim
 desc.TextWrapped = true
 desc.TextXAlignment = Enum.TextXAlignment.Left
@@ -334,7 +332,7 @@ desc.Parent = main
 -- HWID line
 local hwidLabel = Instance.new("TextLabel")
 hwidLabel.Size = UDim2.new(1, -40, 0, 16)
-hwidLabel.Position = UDim2.new(0, 20, 0, 106)
+hwidLabel.Position = UDim2.new(0, 20, 0, 96)
 hwidLabel.BackgroundTransparency = 1
 hwidLabel.Text = "HWID: " .. getHWID()
 hwidLabel.TextColor3 = T.textMuted
@@ -348,7 +346,7 @@ hwidLabel.Parent = main
 -- Key input
 local keyBox = Instance.new("TextBox")
 keyBox.Size = UDim2.new(1, -40, 0, 42)
-keyBox.Position = UDim2.new(0, 20, 0, 128)
+keyBox.Position = UDim2.new(0, 20, 0, 120)
 keyBox.BackgroundColor3 = T.inputBg
 keyBox.Text = ""
 keyBox.PlaceholderText = "Paste your key here"
@@ -365,7 +363,7 @@ stroke(keyBox, T.accentDim, 1)
 -- Status line
 local status = Instance.new("TextLabel")
 status.Size = UDim2.new(1, -40, 0, 20)
-status.Position = UDim2.new(0, 20, 0, 178)
+status.Position = UDim2.new(0, 20, 0, 170)
 status.BackgroundTransparency = 1
 status.Text = "Waiting for your key..."
 status.TextColor3 = T.textMuted
@@ -405,19 +403,17 @@ local function makeButton(text, pos, size, bg, textSize)
     return b
 end
 
--- Row 1: two ways to get a key. Users who dislike work.ink can use lootlabs.
-local getKeyWorkBtn = makeButton("Get Key: work.ink",
-    UDim2.new(0, 20, 0, 202), UDim2.new(0.5, -26, 0, 40), T.accentDim, 13)
-local getKeyLootBtn = makeButton("Get Key: lootlabs",
-    UDim2.new(0.5, 6, 0, 202), UDim2.new(0.5, -26, 0, 40), T.accentDim, 13)
--- Row 2: redeem, full width.
+-- One combined provider (work.ink + lootlabs in its checkpoint flow), so a single
+-- Get Key button is all we need, beside Redeem.
+local getKeyBtn = makeButton("Get Key",
+    UDim2.new(0, 20, 0, 200), UDim2.new(0.5, -26, 0, 42), T.accentDim)
 local redeemBtn = makeButton("Redeem",
-    UDim2.new(0, 20, 0, 250), UDim2.new(1, -40, 0, 42), T.accent)
+    UDim2.new(0.5, 6, 0, 200), UDim2.new(0.5, -26, 0, 42), T.accent)
 
 -- Footer / attempts
 local footer = Instance.new("TextLabel")
 footer.Size = UDim2.new(1, -40, 0, 16)
-footer.Position = UDim2.new(0, 20, 0, 304)
+footer.Position = UDim2.new(0, 20, 0, 252)
 footer.BackgroundTransparency = 1
 footer.Text = "SAUCEHUB - key bound to your HWID"
 footer.TextColor3 = T.textMuted
@@ -457,21 +453,19 @@ end
 --==============================================================
 -- BUTTON LOGIC
 --==============================================================
--- One handler for both providers - pass the provider name straight to
--- get_key_link so we never depend on the mutable Junkie.provider default.
 local fetchingLink = false
-local function requestKey(providerName, label)
+getKeyBtn.MouseButton1Click:Connect(function()
     if fetchingLink then return end
     fetchingLink = true
-    setStatus("Fetching your " .. label .. " link...", T.warning)
+    setStatus("Fetching your key link...", T.warning)
     task.spawn(function()
         -- get_key_link returns (link, errReason); keep the reason so a failure is
         -- never opaque (a wrong provider name reads as "Provider not found", etc).
-        local ok, link, reason = pcall(Junkie.get_key_link, providerName)
+        local ok, link, reason = pcall(Junkie.get_key_link, CONFIG.JUNKIE_PROVIDER)
         fetchingLink = false
         if ok and type(link) == "string" and #link > 0 then
             clip(link)
-            setStatus(label .. " link copied! Complete it, then paste your key.", T.success)
+            setStatus("Link copied! Complete it, then paste your key.", T.success)
         else
             local why = (type(link) == "string" and link)
                 or (type(reason) == "string" and reason)
@@ -482,13 +476,6 @@ local function requestKey(providerName, label)
             setStatus("Get Key failed: " .. tostring(why):sub(1, 55), T.danger)
         end
     end)
-end
-
-getKeyWorkBtn.MouseButton1Click:Connect(function()
-    requestKey(CONFIG.JUNKIE_PROVIDER_WORKINK, "work.ink")
-end)
-getKeyLootBtn.MouseButton1Click:Connect(function()
-    requestKey(CONFIG.JUNKIE_PROVIDER_LOOTLABS, "lootlabs")
 end)
 
 local attempts = 0
