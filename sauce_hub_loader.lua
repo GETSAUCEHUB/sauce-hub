@@ -29,7 +29,7 @@ local CONFIG = {
     -- and paste its raw.githubusercontent.com URL here.
     SCRIPTS = {
         -- Fight The Monsters: Restored
-        [93079655337537] = "https://raw.githubusercontent.com/USER/REPO/main/ftmr.lua", -- TODO: real raw URL
+        [93079655337537] = "https://raw.githubusercontent.com/ZackrryY/sauce-hub/main/ftmr.lua",
     },
 
     HUB_NAME     = "SAUCE",
